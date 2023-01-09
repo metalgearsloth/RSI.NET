@@ -7,6 +7,7 @@ using Importer.Directions;
 using JetBrains.Annotations;
 using Microsoft.Toolkit.Diagnostics;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.ColorSpaces;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
@@ -120,6 +121,64 @@ public class RsiState : IDisposable
         }
 
         return image;
+    }
+
+    public void ToSmoothed(RsiSize size)
+    {
+        if (Directions != DirectionType.None)
+        {
+            // A
+            return;
+        }
+
+        Directions = DirectionType.Cardinal;
+
+        if (Delays == null)
+            return;
+
+        var width = size.X;
+        var height = size.Y;
+        
+        var delays = Delays[0];
+        var cardinals = (int)DirectionType.Cardinal;
+
+        for (var j = 0; j < delays.Count; j++)
+        {
+            var state = Frames[0, j];
+            
+            // Split the 1 state into 4 separate directions.
+            for (var i = 0; i < cardinals; i++)
+            {
+                Point point;
+
+                if (i == 0)
+                {
+                    point = new Point(width / 2, height / 2);
+                }
+                else if (i == 1)
+                {
+                    point = new Point(0, 0);
+                }
+                else if (i == 2)
+                {
+                    point = new Point(width / 2, 0);
+                }
+                else if (i == 3)
+                {
+                    point = new Point(0, height / 2);
+                }
+                else
+                {
+                    throw new ArgumentOutOfRangeException();
+                }
+                
+                var rectangle = new Rectangle(point.X, point.Y, width / 2, height / 2);
+                var cropped = state.Clone(o => o.Crop(rectangle));
+                var frameImage = new Image<Rgba32>(size.X, size.Y);
+                frameImage.Mutate(o => o.DrawImage(cropped, new Point(point.X, point.Y), PixelColorBlendingMode.Add, PixelAlphaCompositionMode.Src, 1f));
+                Frames[i, j] = frameImage;
+            }
+        }
     }
 
     public int FirstFrameIndexFor(RsiSize size, Direction direction)
